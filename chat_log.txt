@@ -1,6 +1,0 @@
-[40951]: hola
-[40951]: cómo estás?
-[40956]: bien y tú?
-[Central]: Reporte de 40956 a 40951
-[40956]: hola
-[42541]: hola
