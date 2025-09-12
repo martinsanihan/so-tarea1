@@ -37,8 +37,29 @@ int main(int argc, char *argv[]) {
     int fd_a_central = open(fifo_a_central, O_WRONLY);
     int fd_a_cliente = open(fifo_a_cliente, O_RDONLY);
 
-    while(1) {
-        sleep(1);
+    pid_t pid_lector = fork();
+    if (pid_lector == -1) {
+        perror("fork");
+        exit(1);
+    } else if (pid_lector == 0) {
+        char buffer_lectura[BUFFER_SIZE];
+        ssize_t bytes_lectura;
+        while((bytes_lectura = read(fd_a_cliente, buffer_lectura, sizeof(buffer_lectura) - 1)) > 0) {
+            buffer_lectura[bytes_lectura] = '\0';
+            printf("\r%s ", buffer_lectura);
+            fflush(stdout);
+        }
+        close(fd_a_cliente);
+        exit(0);
+    } else {
+        char buffer_escritura[BUFFER_SIZE];
+        printf("> ");
+        fflush(stdout);
+        while(fgets(buffer_escritura, sizeof(buffer_escritura), stdin)) {
+            write(fd_a_central, buffer_escritura, strlen(buffer_escritura));
+        }
+        printf("> ");
+        fflush(stdout);
     }
 
     return 0;
