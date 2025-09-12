@@ -15,7 +15,7 @@ int main(int argc, char *argv[]) {
     pid_t mi_pid = getpid();
 
     printf("PID: %d\n", mi_pid);
-    // printf("   Comandos disponibles: /clonar, /salir, reportar <PID>\n\n");
+    printf("    Comandos disponibles: /clonar, reportar <PID>\n");
 
     // Crear FIFOs privados
     char fifo_a_central[50], fifo_a_cliente[50];
@@ -46,7 +46,7 @@ int main(int argc, char *argv[]) {
         ssize_t bytes_lectura;
         while((bytes_lectura = read(fd_a_cliente, buffer_lectura, sizeof(buffer_lectura) - 1)) > 0) {
             buffer_lectura[bytes_lectura] = '\0';
-            printf("\r%s ", buffer_lectura);
+            printf("\r%s> ", buffer_lectura);
             fflush(stdout);
         }
         close(fd_a_cliente);
@@ -56,10 +56,25 @@ int main(int argc, char *argv[]) {
         printf("> ");
         fflush(stdout);
         while(fgets(buffer_escritura, sizeof(buffer_escritura), stdin)) {
-            write(fd_a_central, buffer_escritura, strlen(buffer_escritura));
+            if (strcmp(buffer_escritura, "/clonar\n") == 0) {
+                pid_t pid_clon = fork();
+                if (pid_clon == -1) {
+                    perror("fork clon");
+                    exit(1);
+                } else if (pid_clon == 0) {
+                    execlp("xterm", "xterm", "-e", "./cliente", (char *) NULL);
+        
+                    perror("abrir nueva terminal execlp");
+                    exit(1);
+                } else {
+                    printf("Cliente clonado: Nuevo PID %d\n", pid_clon);
+                }
+            } else {
+                write(fd_a_central, buffer_escritura, strlen(buffer_escritura));
+                printf("> ");
+                fflush(stdout);
+            }
         }
-        printf("> ");
-        fflush(stdout);
     }
 
     return 0;

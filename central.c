@@ -8,6 +8,7 @@
 #include <signal.h>
 
 #define FIFO_PATH "/tmp/fifo_publico"
+#define FIFO_REPORT "/tmp/fifo_reportes"
 #define BUFFER_SIZE 256
 
 struct Cliente {
@@ -24,13 +25,12 @@ int main() {
 
     // Conjunto descriptores FIFO y variable buffer
     fd_set read_fds;
-    char buffer[BUFFER_SIZE];
 
     // Crear FIFO con permisos de lectura y escritura
     umask(0);
+    mkfifo(FIFO_REPORT, 0666);
     mkfifo(FIFO_PATH, 0666);
 
-    //Abrir FIFO en modo de lectura
     int fd_publico = open(FIFO_PATH, O_RDONLY | O_NONBLOCK);
     if (fd_publico == -1) {
         perror("abrir FIFO");
@@ -92,20 +92,47 @@ int main() {
 
                 if (bytes > 0) {
                     buffer[bytes] = '\0';
-                    char mensaje[BUFFER_SIZE + 20];
 
-                    sprintf(mensaje, "[%d]: %s", clientes[i].pid, buffer);
-                    printf("[Central:%d]: [%d]: %s", getpid(), clientes[i].pid, buffer);
+                    if (strncmp(buffer, "reportar ", 9) == 0) {
+                        pid_t pid_report;
+                        sscanf(buffer, "reportar %d", &pid_report);
+                        int fd_report = open(FIFO_REPORT, O_WRONLY);
+                        if (fd_report == -1) {
+                            perror("abrir FIFO");
+                            exit(1);
+                        }
 
-                    FILE* log_file = fopen("/tmp/chat_log.txt", "a");
-                    if (log_file) {
-                        fputs(mensaje, log_file);
-                        fclose(log_file);
-                    }
+                        for (int j = 0; j < num_clientes; j++) {
+                            if(pid_report == clientes[j].pid) {
+                                char reporte[10];
+                                char reporte_formateado[50];
+                                sprintf(reporte, "%d", pid_report);
+                                sprintf(reporte_formateado, "[Central]: Reporte de %d a %d\n", clientes[i].pid, pid_report);
+                                FILE* log_file = fopen("chat_log.txt", "a");
+                                if (log_file) {
+                                    fputs(reporte_formateado, log_file);
+                                    fclose(log_file);
+                                }
 
-                    for (int j = 0; j < num_clientes; j++) {
-                        if(i != j) {
-                            write(clientes[j].fd_a_cliente, mensaje, strlen(mensaje));
+                                printf("[Central]: Reporte de %d a %d\n", clientes[i].pid, pid_report);
+                                fflush(stdout);
+                            
+                                write(fd_report, reporte, strlen(reporte));
+                            }
+                        }
+                    } else {
+                        char mensaje[BUFFER_SIZE + 20];
+                        sprintf(mensaje, "[%d]: %s", clientes[i].pid, buffer);
+                        printf("[Central]: [%d]: %s", clientes[i].pid, buffer);
+                        FILE* log_file = fopen("chat_log.txt", "a");
+                        if (log_file) {
+                            fputs(mensaje, log_file);
+                            fclose(log_file);
+                        }
+                        for (int j = 0; j < num_clientes; j++) {
+                            if(i != j) {
+                                write(clientes[j].fd_a_cliente, mensaje, strlen(mensaje));
+                            }
                         }
                     }
                 } else if (bytes == 0) {
@@ -113,11 +140,6 @@ int main() {
 
                     close(clientes[i].fd_a_central);
                     close(clientes[i].fd_a_cliente);
-                    char fifo_a_central[50], fifo_a_cliente[50];
-                    sprintf(fifo_a_central, "/tmp/fifo_a_central_%d", clientes[i].pid);
-                    sprintf(fifo_a_cliente, "/tmp/fifo_a_cliente_%d", clientes[i].pid);
-                    unlink(fifo_a_central);
-                    unlink(fifo_a_cliente);
 
                     if (i != num_clientes - 1) {
                         clientes[i] = clientes[num_clientes - 1];
